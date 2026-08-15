@@ -520,9 +520,11 @@ headless harness + collision invariant + generator soundness + phase math tests.
 **Out:** road building, economy/currency, corridor UI, time–space diagram,
 stop signs, roundabouts, turn lanes, lane changing, campaign, save/load.
 
-**Map size for this slice:** 30 × 22 cells (600 m × 440 m) with roughly 4–6
-signalised intersections. Small enough to read on a phone without constant
-pinch-zooming, big enough to jam.
+**Map size for this slice:** 16 × 24 cells (320 m × 480 m), portrait-oriented:
+one vertical main street with 2–3 signalised cross-street junctions and a
+portal at every road end (4–5 portals). Revised down from a 4–6 signal grid
+after the first phone playtest — whole-town zoom must stay readable on a
+390 px-wide screen without pinching.
 
 **Acceptance:** install to homescreen, start a run offline, watch cars drive
 A→B→C, tap a signal, change its split, see throughput move, let it gridlock,

@@ -10,10 +10,10 @@ describe('map generator', () => {
       const { net } = generateMap(seed);
       expect(validate(net), `seed ${seed} failed validation`).toBe(true);
       expect(fullyConnected(net), `seed ${seed} not connected`).toBe(true);
-      expect(net.portals.length).toBe(3);
       const signals = net.nodes.filter((n) => n.control.type === 'signal').length;
-      expect(signals).toBeGreaterThanOrEqual(4);
-      expect(signals).toBeLessThanOrEqual(6);
+      expect(signals).toBeGreaterThanOrEqual(2);
+      expect(signals).toBeLessThanOrEqual(3);
+      expect(net.portals.length).toBe(signals + 2);
     }
   });
 

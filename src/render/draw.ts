@@ -5,6 +5,8 @@
 import {
   CAR_LENGTH,
   LANE_WIDTH,
+  MAP_H,
+  MAP_W,
   NODE_BOX_RADIUS,
   PORTAL_COLORS,
   PORTAL_LABELS,
@@ -32,10 +34,15 @@ export function drawStatic(ctx: CanvasRenderingContext2D, net: Network, cam: Cam
 
   // Town footprint.
   ctx.fillStyle = BLOCK;
-  ctx.fillRect(cam.toScreenX(-30), cam.toScreenY(-30), (60 + 600) * cam.scale, (60 + 440) * cam.scale);
+  ctx.fillRect(
+    cam.toScreenX(-30),
+    cam.toScreenY(-30),
+    (60 + MAP_W) * cam.scale,
+    (60 + MAP_H) * cam.scale,
+  );
 
   // Fatten roads at low zoom so the network stays readable on a phone.
-  const roadW = Math.max(6, LANE_WIDTH * 2 * cam.scale);
+  const roadW = Math.max(8, LANE_WIDTH * 2 * cam.scale);
 
   // Road bodies.
   ctx.lineCap = 'round';
@@ -97,7 +104,7 @@ export function drawStatic(ctx: CanvasRenderingContext2D, net: Network, cam: Cam
     const color = portalColor(net, p);
     const sx = cam.toScreenX(node.pos.x);
     const sy = cam.toScreenY(node.pos.y);
-    const r = Math.max(14, 9 * cam.scale);
+    const r = Math.max(16, 9 * cam.scale);
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(sx, sy, r, 0, Math.PI * 2);
@@ -124,8 +131,9 @@ export function drawDynamic(
 }
 
 function drawCars(ctx: CanvasRenderingContext2D, world: World, cam: Camera, alpha: number): void {
-  const w = 2.0 * cam.scale;
-  const l = CAR_LENGTH * cam.scale;
+  // Floor the on-screen size: cars must stay readable fully zoomed out.
+  const l = Math.max(9, CAR_LENGTH * cam.scale);
+  const w = l * 0.46;
   const showBadge = cam.scale > 2.2;
   for (const car of world.cars.values()) {
     const pose = world.carPose(car);
@@ -179,10 +187,10 @@ function drawSignalHeads(ctx: CanvasRenderingContext2D, world: World, cam: Camer
     const py = lane.end.y + n.y * (LANE_WIDTH * 0.95);
     const sx = cam.toScreenX(px);
     const sy = cam.toScreenY(py);
-    const r = Math.max(2.5, 1.1 * cam.scale);
+    const r = Math.max(4, 1.2 * cam.scale);
     ctx.fillStyle = '#20242b';
     ctx.beginPath();
-    ctx.arc(sx, sy, r + Math.max(1, 0.35 * cam.scale), 0, Math.PI * 2);
+    ctx.arc(sx, sy, r + Math.max(1.5, 0.35 * cam.scale), 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = LIGHT_COLORS[st];
     ctx.beginPath();

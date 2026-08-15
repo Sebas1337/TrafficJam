@@ -36,9 +36,9 @@ export const NODE_BOX_RADIUS = 8; // m
 // Comfortable lateral acceleration used to derive turn speed caps.
 export const LATERAL_ACCEL = 1.8; // m/s^2
 
-// Slice-1 map extent (spec §15): 30 × 22 cells.
-export const MAP_W = 30 * GRID_CELL; // 600 m
-export const MAP_H = 22 * GRID_CELL; // 440 m
+// Slice-1 map extent: 16 × 24 cells, portrait-oriented for phone screens.
+export const MAP_W = 16 * GRID_CELL; // 320 m
+export const MAP_H = 24 * GRID_CELL; // 480 m
 
 // Demand (spec §7.7, slice-1 tuning).
 export const DEMAND_BASE = 6; // cars/min at t = 0

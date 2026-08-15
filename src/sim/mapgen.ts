@@ -1,11 +1,13 @@
-// Slice-1 map generation: seeded corridor grid with boundary portals.
+// Slice-1 map generation: a portrait "spine town" — one vertical main street
+// with 2-3 signalised cross-street junctions and a portal at every road end.
 //
-// Deliberate simplification of spec §6 (logged in docs/PROGRESS.md): instead
-// of organic arterial routing + block subdivision, slice 1 generates 2-3
-// vertical and 2-3 horizontal arterial corridors whose crossings are the
-// signalised intersections (4-6 of them, per the slice-1 target). The full
-// organic generator arrives when bigger maps matter (slice 3). Validation and
-// retry semantics match §6: pure function of seed, reject-and-retry.
+// Deliberate simplification of spec §6 (logged in docs/PROGRESS.md), reshaped
+// after the first phone playtest: a 4-6 signal grid at full-map zoom rendered
+// at ~0.6 px/m on a 390 px screen — too small, too much at once. The spine
+// layout doubles the scale, reads instantly in portrait, and is naturally a
+// corridor (which is what slice 2 coordinates). The organic generator arrives
+// when bigger maps matter (slice 3). Validation and retry semantics match §6:
+// pure function of seed, reject-and-retry.
 
 import { CYCLE_DEFAULT, MAP_H, MAP_W, PORTAL_LABELS } from './constants';
 import { mulberry32, randInt, randRange, type Rng } from './rng';
@@ -18,9 +20,8 @@ export interface GeneratedMap {
   seed: number;
 }
 
-const MARGIN = 50;
-const MIN_SEP_V = 140; // min spacing between vertical corridors
-const MIN_SEP_H = 120;
+const CROSS_MARGIN = 75; // min distance of a cross street from the map edge
+const MIN_SEP = 130; // min spacing between cross streets
 const MAX_ATTEMPTS = 50;
 
 export function generateMap(seed: number): GeneratedMap {
@@ -33,77 +34,53 @@ export function generateMap(seed: number): GeneratedMap {
 }
 
 function tryGenerate(rng: Rng): Network | null {
-  // Corridor counts whose product (signal count) lands in 4..6.
-  const options: Array<[number, number]> = [
-    [2, 2],
-    [2, 3],
-    [3, 2],
-  ];
-  const [nV, nH] = options[randInt(rng, options.length)];
-
-  const xs = spread(rng, nV, MARGIN, MAP_W - MARGIN, MIN_SEP_V);
-  const ys = spread(rng, nH, MARGIN, MAP_H - MARGIN, MIN_SEP_H);
-  if (!xs || !ys) return null;
+  const nH = 2 + randInt(rng, 2); // 2 or 3 signalised junctions
+  const ys = spread(rng, nH, CROSS_MARGIN, MAP_H - CROSS_MARGIN, MIN_SEP);
+  if (!ys) return null;
+  // Main street somewhere through the middle third, so both cross-street
+  // sides have room.
+  const mainX = randRange(rng, MAP_W * 0.35, MAP_W * 0.65);
 
   const b = new NetworkBuilder();
+  const crossings: NodeId[] = ys.map((y) => b.addNode(v(mainX, y), 'intersection'));
 
-  // Crossing nodes.
-  const cross: NodeId[][] = [];
-  for (let i = 0; i < nV; i++) {
-    cross.push([]);
-    for (let j = 0; j < nH; j++) {
-      cross[i].push(b.addNode(v(xs[i], ys[j]), 'intersection'));
-    }
-  }
-
-  // Portal candidates: the boundary ends of each corridor.
-  interface Candidate {
+  // Portals: both ends of the main street, plus the boundary end of each
+  // cross street. Cross streets alternate sides so the town isn't lopsided.
+  interface PortalDef {
     pos: { x: number; y: number };
-    attach: () => NodeId; // inner node the portal stub connects to
+    attach: NodeId;
+    node?: NodeId;
+    cls: 'arterial' | 'local';
   }
-  const candidates: Candidate[] = [];
-  for (let i = 0; i < nV; i++) {
-    candidates.push({ pos: v(xs[i], 0), attach: () => cross[i][0] });
-    candidates.push({ pos: v(xs[i], MAP_H), attach: () => cross[i][nH - 1] });
-  }
+  const defs: PortalDef[] = [
+    { pos: v(mainX, 0), attach: crossings[0], cls: 'arterial' },
+    { pos: v(mainX, MAP_H), attach: crossings[nH - 1], cls: 'arterial' },
+  ];
+  const firstSide = randInt(rng, 2);
   for (let j = 0; j < nH; j++) {
-    candidates.push({ pos: v(0, ys[j]), attach: () => cross[0][j] });
-    candidates.push({ pos: v(MAP_W, ys[j]), attach: () => cross[nV - 1][j] });
+    const left = (j + firstSide) % 2 === 0;
+    defs.push({ pos: v(left ? 0 : MAP_W, ys[j]), attach: crossings[j], cls: 'local' });
   }
+  for (const d of defs) d.node = b.addNode(v(d.pos.x, d.pos.y), 'portal');
 
-  // Pick 3 well-separated portals, then label A, B, C clockwise from north.
-  const picked: Candidate[] = [];
-  const pool = [...candidates];
-  while (picked.length < 3 && pool.length > 0) {
-    const c = pool.splice(randInt(rng, pool.length), 1)[0];
-    const tooClose = picked.some(
-      (p) => Math.hypot(p.pos.x - c.pos.x, p.pos.y - c.pos.y) < 220,
-    );
-    if (!tooClose) picked.push(c);
-  }
-  if (picked.length < 3) return null;
+  // Main street spine.
+  b.addEdge(defs[0].node!, crossings[0], 'arterial');
+  for (let j = 0; j + 1 < nH; j++) b.addEdge(crossings[j], crossings[j + 1], 'arterial');
+  b.addEdge(crossings[nH - 1], defs[1].node!, 'arterial');
+  // Cross streets.
+  for (let k = 2; k < defs.length; k++) b.addEdge(defs[k].attach, defs[k].node!, defs[k].cls);
 
+  // Label portals A, B, C… clockwise from north.
   const cx = MAP_W / 2;
   const cy = MAP_H / 2;
-  picked.sort((a, bb) => clockwiseFromNorth(a.pos.x - cx, a.pos.y - cy) - clockwiseFromNorth(bb.pos.x - cx, bb.pos.y - cy));
-
-  const portalNodes: NodeId[] = [];
-  const portalAttach = new Map<NodeId, NodeId>();
-  picked.forEach((c, idx) => {
-    const n = b.addNode(v(c.pos.x, c.pos.y), 'portal', PORTAL_LABELS[idx]);
-    portalNodes.push(n);
-    portalAttach.set(n, c.attach());
+  const sorted = [...defs].sort(
+    (a, bb) =>
+      clockwiseFromNorth(a.pos.x - cx, a.pos.y - cy) -
+      clockwiseFromNorth(bb.pos.x - cx, bb.pos.y - cy),
+  );
+  sorted.forEach((d, i) => {
+    b.nodes[d.node!].portal = PORTAL_LABELS[i];
   });
-
-  // Corridor edges between consecutive crossings.
-  for (let i = 0; i < nV; i++) {
-    for (let j = 0; j + 1 < nH; j++) b.addEdge(cross[i][j], cross[i][j + 1], 'arterial');
-  }
-  for (let j = 0; j < nH; j++) {
-    for (let i = 0; i + 1 < nV; i++) b.addEdge(cross[i][j], cross[i + 1][j], 'arterial');
-  }
-  // Portal stubs.
-  for (const p of portalNodes) b.addEdge(portalAttach.get(p)!, p, 'arterial');
 
   const net = b.build();
   assignSignals(net, rng);
@@ -157,9 +134,10 @@ export function movementsByAxis(net: Network, node: NodeId): { ns: number[]; ew:
 }
 
 export function validate(net: Network): boolean {
-  if (net.portals.length !== 3) return false;
+  // Spine town: 2-3 signals, one portal per road end (2 + one per signal).
   const signals = net.nodes.filter((n) => n.control.type === 'signal').length;
-  if (signals < 4 || signals > 6) return false;
+  if (signals < 2 || signals > 3) return false;
+  if (net.portals.length !== signals + 2) return false;
   for (const e of net.edges) if (e.length < 40) return false;
   return fullyConnected(net);
 }

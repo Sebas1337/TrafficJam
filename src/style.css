@@ -132,50 +132,89 @@ canvas {
 
 #sheet header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding-right: 40px;
 }
 
 #sheet h2 {
   font-size: 16px;
 }
 
-#sheet .phase-chips {
-  display: flex;
-  gap: 6px;
-}
-
-.chip {
-  padding: 3px 10px;
-  border-radius: 999px;
+#sheet .caption {
   font-size: 12px;
-  font-weight: 700;
-  background: #232b36;
   color: #93a0b4;
 }
 
-.chip.green {
-  background: #14371f;
-  color: #2fd274;
+/* Live phase timeline: two strips + a moving "now" marker. */
+.phase-view {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin: 4px 0 12px;
 }
 
-.chip.yellow {
-  background: #3d3313;
-  color: #f5c445;
+.phase-view .dirs {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  font-size: 13px;
+  font-weight: 700;
+  color: #aeb9c9;
+  width: 24px;
+  text-align: center;
+}
+
+.phase-view .strips {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.strip {
+  display: flex;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #3a4553;
+}
+
+.marker {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: #f2f6fc;
+  border-radius: 1px;
+  box-shadow: 0 0 4px #f2f6fc88;
+  pointer-events: none;
 }
 
 .slider-row {
   display: grid;
-  grid-template-columns: 92px 1fr 52px;
+  grid-template-columns: 112px 1fr 64px;
   align-items: center;
   gap: 10px;
-  margin: 8px 0;
+  margin: 6px 0;
+}
+
+.slider-row .lbl {
+  display: flex;
+  flex-direction: column;
 }
 
 .slider-row label {
   font-size: 13px;
-  color: #aeb9c9;
+  color: #dbe3ee;
+  font-weight: 600;
+}
+
+.slider-row small {
+  font-size: 10.5px;
+  color: #7d8a9d;
 }
 
 .slider-row output {

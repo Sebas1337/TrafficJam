@@ -46,7 +46,9 @@ future sessions don't re-litigate them. One line each: the decision, and why.
 
 | Date | Slice | Decision |
 |---|---|---|
-| 2026-08-15 | 1 | Map generation simplified from spec §6 (organic subdivision) to a seeded corridor grid: 2-3 vertical × 2-3 horizontal arterials whose crossings are the 4-6 signals. Right shape for a small all-signalised map; the organic generator arrives with slice 3 when player-built roads make bigger maps matter. |
+| 2026-08-15 | 1 | **Playtest feedback round 1:** map relaid out as a portrait "spine town" — one vertical main street, 2-3 signalised cross junctions, portal at every road end (4-5 portals), 320×480 m. The earlier 4-6 signal grid rendered at ~0.6 px/m on a phone: too small, too much at once. Renderer also gained minimum on-screen sizes for cars, roads, and signal heads. |
+| 2026-08-15 | 1 | **Playtest feedback round 1:** signal editor gained a live phase timeline (↑↓/←→ strips coloured across one cycle + a moving now-marker) after feedback that the sliders were opaque. Doubles as the visual language for the slice-2 time–space diagram. |
+| 2026-08-15 | 1 | Map generation simplified from spec §6 (organic subdivision) to a seeded corridor layout; the organic generator arrives with slice 3 when player-built roads make bigger maps matter. |
 | 2026-08-15 | 1 | Single lane per direction everywhere. The data model carries lane arrays (spec §5) so slice 5 widens rather than rewrites. |
 | 2026-08-15 | 1 | Permissive left turns: lefts yield to opposing through traffic via a gap check, and box entry requires all conflicting connections empty. Protected left phases can come with turn lanes (slice 5). |
 | 2026-08-15 | 1 | `World.failureEnabled` flag added: fixtures/tests that engineer long jams need frustration not to end the run. Campaign/sandbox will reuse it. |
@@ -75,9 +77,9 @@ inaccurate empty is not.
 - **Demand/frustration balance is untested by feel.** Constants (§4 demand,
   frustration rates) are tuned from headless soak tests, not play. Expect a
   balance pass after the first real phone sessions.
-- **The slice-1 map holds ~75 cars in practice** (small corridor grid). The
-  "60 fps with 150 cars" criterion was verified by injecting 160 cars as a
-  perf fixture; organic play on this map won't reach that count. Fine for
+- **The slice-1 map holds well under 150 cars organically** (small spine
+  town). The "60 fps with 150 cars" criterion was verified by injecting 160
+  cars as a perf fixture; organic play won't reach that count. Fine for
   slice 1; bigger maps come with slice 3.
 - **Render interpolation uses the previous tick's pose** — at 4× speed with a
   full step backlog, cars can visibly skip. Invisible at 1×/2×.
