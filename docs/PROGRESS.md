@@ -25,7 +25,7 @@ Two systems, deliberately non-overlapping — keep it that way or they will drif
 |---|---|
 | **Slice in progress** | Slice 1 ([#1](https://github.com/Sebas1337/TrafficJam/issues/1)) — built, awaiting human phone verification |
 | **Next up** | Human acceptance pass on a real phone, then slice 2 |
-| **Live build** | GitHub Pages via Actions (deploys from the working branch; URL in the Actions run) |
+| **Live build** | https://sebas1337.github.io/TrafficJam/ — CI builds and pushes `gh-pages` on every push; **needs a one-time enable**: Settings → Pages → Source "Deploy from a branch" → `gh-pages` / root |
 | **Last updated** | 2026-08-15 — slice 1 implementation complete, 14/14 tests green |
 
 **What exists today:** the full slice-1 game. Deterministic sim (IDM + phantom
@@ -67,6 +67,11 @@ future sessions don't re-litigate them. One line each: the decision, and why.
 Anything knowingly left broken or unfinished. Empty is a valid state — an
 inaccurate empty is not.
 
+- **Pages needs a one-time manual enable** (see Live build above). The CI
+  token cannot create the Pages site (`configure-pages` returned "Resource not
+  accessible by integration") and gh-pages auto-enable did not trigger. The
+  `gh-pages` branch is built and pushed on every CI run; once enabled, every
+  future deploy is automatic.
 - **Demand/frustration balance is untested by feel.** Constants (§4 demand,
   frustration rates) are tuned from headless soak tests, not play. Expect a
   balance pass after the first real phone sessions.
