@@ -7,11 +7,14 @@ into green waves.
 
 ## Read these first, in this order
 
-1. **`docs/PROGRESS.md`** — what is built, what is next, and why past decisions
-   were made. Always read this before starting work.
-2. **`docs/GAME_SPEC.md`** — the authoritative design and technical spec:
+1. **`docs/PROGRESS.md`** — current state, the decision log, and links to the
+   slice issues. Always read this before starting work.
+2. **The GitHub issue for the current slice** — this is the checklist of record.
+   One issue per slice in `Sebas1337/TrafficJam`, holding its scope, tasks,
+   out-of-scope list, and acceptance criteria.
+3. **`docs/GAME_SPEC.md`** — the authoritative design and technical spec:
    constants, data model, algorithms, tests, roadmap.
-3. **`docs/BUILD_PROMPT.md`** — the prompt for the slice currently being built.
+4. **`docs/BUILD_PROMPT.md`** — the prompt for the slice currently being built.
 
 ## How this project is built
 
@@ -19,16 +22,20 @@ The game ships in **small incremental slices** (spec §15). Each slice ends with
 working build that is playable on a phone and deployed. **Do not start the next
 slice until the current one's acceptance criteria pass.**
 
-Each slice's prompt carries an explicit out-of-scope list. Respect it — finishing
+Each slice issue carries an explicit out-of-scope list. Respect it — finishing
 one slice completely beats starting three.
 
 ## Session rules
 
-- **Before starting:** read `docs/PROGRESS.md` and work only on the current slice.
-- **Before finishing:** update `docs/PROGRESS.md` — tick what you completed, set
-  the current-state table, and add any design decisions to the decision log.
-  Record anything knowingly left broken under "Known issues / deferred".
-- **Be accurate.** Only tick an acceptance checkbox when it is genuinely verified.
+- **Before starting:** read `docs/PROGRESS.md` and the current slice's issue.
+  Work only on that slice.
+- **As you go:** tick task checkboxes on the slice issue as they are genuinely
+  completed.
+- **Before finishing:** update `docs/PROGRESS.md` — set the current-state table,
+  add any design decisions to the decision log, and record anything knowingly
+  left broken under "Known issues / deferred".
+- **Do not tick the acceptance-criteria boxes.** Those are verified by a human on
+  a real phone. Everything else is yours to tick — but only when genuinely done.
   An optimistic tracker is worse than no tracker, because the next session builds
   on top of it.
 - Commit in logical increments. Push to the working branch named in the prompt.
