@@ -11,9 +11,15 @@ this repository.
 > Build **slice 1** of *TrafficJam*, a mobile-first traffic management game, in
 > this repository.
 >
-> Read `docs/GAME_SPEC.md` in full before writing any code — it is the
-> authoritative specification and defines the constants, data model, algorithms,
-> and tests. This prompt is the summary and the scope boundary.
+> Read `docs/PROGRESS.md` first to see current state, then `docs/GAME_SPEC.md` in
+> full before writing any code — the spec is authoritative and defines the
+> constants, data model, algorithms, and tests. This prompt is the summary and
+> the scope boundary.
+>
+> **Update `docs/PROGRESS.md` as you go** — tick items as they are genuinely
+> done, keep the current-state table accurate, and log any design decisions you
+> make. The next slice is built in a fresh session that knows only what that file
+> says.
 >
 > ### Slice 1 is "Time the lights"
 > The map is generated and already signalised. **The entire game is retiming
@@ -89,8 +95,11 @@ this repository.
 > Commit in logical increments with clear messages. Work on the branch
 > `claude/traffic-game-prompt-design-332qd1` and push when slice 1 is playable.
 > If you hit a design fork the spec does not settle, pick the option that best
-> serves the pillars in §2, note it in the README, and keep moving — do not
-> stall, and do not expand scope to resolve it.
+> serves the pillars in §2, log it in the `docs/PROGRESS.md` decision log, and
+> keep moving — do not stall, and do not expand scope to resolve it.
+>
+> Finish by updating `docs/PROGRESS.md`: tick what is genuinely verified, set the
+> current-state table, and record anything left broken under "Known issues".
 
 ---
 
