@@ -473,48 +473,93 @@ Determinism is a feature, not a nicety — it's what makes this testable.
 - **Headless harness:** `runHeadless(network, demand, seconds)` steps the sim
   with no rendering and returns metrics. This is the backbone of the test suite.
 
-Required tests:
-1. **Collision invariant** — across 1000 sim-seconds on several seeds, no two
-   cars on the same lane ever overlap. *This is the single most valuable test in
-   the project.*
-2. **No negative speeds**, no NaN positions, ever.
-3. **Generator soundness** — 1000 seeds all produce fully connected maps passing
-   every validation rule.
-4. **Signal phase math** — phase lookup is correct across offset wraparound and
-   at exact boundaries.
-5. **Routing** — returns a connected, traversable lane path; handles a deleted
-   edge mid-route.
-6. **Green wave** — on a fixture corridor, correctly offset signals produce a
-   measurably lower mean delay than zero-offset ones. This asserts the core
-   mechanic actually *works*.
-7. **Spillback/deadlock** — a saturated ring network does deadlock (proving the
-   rule bites), and clears once a signal is retimed.
+Required tests, tagged with the slice that introduces them (§15):
+
+| # | Test | Slice |
+|---|---|---|
+| 1 | **Collision invariant** — across 1000 sim-seconds on several seeds, no two cars on the same lane ever overlap. *The single most valuable test in the project.* | 1 |
+| 2 | **No negative speeds**, no NaN positions, ever. | 1 |
+| 3 | **Generator soundness** — 1000 seeds all produce fully connected maps passing every validation rule. | 1 |
+| 4 | **Signal phase math** — phase lookup correct across offset wraparound and at exact boundaries. | 1 |
+| 5 | **Routing** — returns a connected, traversable lane path. | 1 |
+| 6 | **Spillback/deadlock** — a saturated ring network does deadlock (proving the rule bites) and clears once a signal is retimed. | 1 |
+| 7 | **Green wave** — on a fixture corridor, correctly offset signals produce measurably lower mean delay than zero-offset ones. *This asserts the core mechanic actually works.* | 2 |
+| 8 | **Route repair** — a car whose road is deleted mid-route re-routes or exits gracefully. | 3 |
+
+Once a test is introduced it stays green forever. Test 1 in particular must be
+added the moment cars start moving, not retrofitted — a sim that silently lets
+cars overlap looks fine and is wrong.
 
 ---
 
-## 15. Milestones
+## 15. Roadmap — incremental slices
 
-### M1 — Playable vertical slice *(this is a complete game on its own)*
-Map generation with portals · IDM car following · signalised and stop-controlled
-intersections · **spillback** · routing · demand ramp · road building · signal
-placement · cycle/split/offset editing · **corridors + time–space diagram** ·
-economy · frustration/fail state · endless mode · heatmap · save/load · PWA ·
-the full test suite above.
+The project ships in small slices. **Every slice ends with a working, deployed
+build the player can open on their phone.** No slice may begin until the
+previous one is playable and its tests are green.
 
-**Acceptance:** on a fresh phone, a player can install it, start an endless run,
-see cars flow from A to B to C, build a road, place a signal, link two signals
-into a corridor, visibly improve throughput by fixing the offset, jam the map,
-and lose — all offline, at 60 fps.
+Two rules govern the slicing:
 
-### M2 — Depth
-Turn lanes and lane changing (MOBIL) · roundabouts and priority roads · the
-15-level campaign · stats/after-action screen · tutorial overlays · sound.
+- **Deployment is in slice 1, not at the end.** The whole point is playing it on
+  a phone; a build that only runs on localhost is not a deliverable.
+- **A slice adds one idea.** If a slice needs a paragraph to describe what it
+  adds, it is two slices.
 
-### M3 — Breadth
-**Pedestrians and crosswalks** (a competing demand tied into the signal phase —
-this was in the original concept and is the most natural next system) · buses or
-emergency vehicles with signal priority · seed sharing · ghost replays of your
-best run.
+### Slice 1 — "Time the lights" *(the first playable game)*
+
+The map is fixed and already signalised. The entire game is retiming those
+signals to keep traffic moving.
+
+**In:** Vite/TS scaffold · fixed-timestep loop · canvas layers · pan/zoom ·
+seeded map generation with portals A/B/C · routing · IDM car following ·
+signalised intersections · **spillback** · tap-a-signal timing editor (cycle,
+split, offset) · demand ramp · throughput readout · frustration meter and fail
+state · pause/1×/2×/4× · installable PWA deployed to GitHub Pages ·
+headless harness + collision invariant + generator soundness + phase math tests.
+
+**Out:** road building, economy/currency, corridor UI, time–space diagram,
+stop signs, roundabouts, turn lanes, lane changing, campaign, save/load.
+
+**Map size for this slice:** 30 × 22 cells (600 m × 440 m) with roughly 4–6
+signalised intersections. Small enough to read on a phone without constant
+pinch-zooming, big enough to jam.
+
+**Acceptance:** install to homescreen, start a run offline, watch cars drive
+A→B→C, tap a signal, change its split, see throughput move, let it gridlock,
+lose. 60 fps with 150 cars.
+
+> **Why spillback is in slice 1 despite sounding advanced:** without it, queues
+> never block intersections, timing barely matters, and slice 1 is a screensaver
+> rather than a game. It is roughly 20 lines and it is the reason the game works.
+
+### Slice 2 — "Green waves"
+Corridor linking · the full-screen time–space diagram with direct manipulation ·
+band efficiency readout · congestion heatmap · the green wave test.
+*This is the hook — it gets its own slice and its own polish pass.*
+
+### Slice 3 — "Build"
+Road drawing with grid snapping · currency and costs · lane upgrades · demolish ·
+undo stack · save/load with versioned schema.
+
+### Slice 4 — "Intersection variety"
+Stop signs · priority roads · gap acceptance · roundabouts · cycling an
+intersection's control type as a paid upgrade.
+
+### Slice 5 — "Lanes"
+Turn lanes and turn pockets · MOBIL lane changing · multi-lane arterials.
+
+### Slice 6 — "Campaign"
+JSON-authored levels · the 15-level progression from §11 · tutorial overlays ·
+three-star thresholds · after-action stats screen.
+
+### Slice 7 — "Pedestrians"
+Crosswalks · pedestrian demand · a pedestrian phase competing for green time.
+*This lands well here: once corridors exist, a pedestrian phase eating into your
+green band is a genuinely interesting trade-off rather than just another system.*
+
+### Later
+Buses or emergency vehicles with signal priority · seed sharing · ghost replays ·
+sound · weather or time-of-day demand patterns.
 
 ---
 
@@ -522,8 +567,9 @@ best run.
 
 | Risk | Mitigation |
 |---|---|
-| Time–space diagram too fiddly on a phone | Prototype it early in M1, full-screen, with generous drag targets. If the direct manipulation fails, fall back to per-signal offset sliders plus the diagram as read-only visualisation. |
-| Sim perf collapses above ~200 cars | Spatial partition per lane (cars already sorted by `s`), cull rendering, and cap sim steps per frame before frame rate. Profile at 300 cars from the first week. |
+| Time–space diagram too fiddly on a phone | It owns slice 2 entirely, so it gets a real design pass. If direct manipulation fails on a thumb, fall back to per-signal offset sliders with the diagram as read-only visualisation. |
+| Sim perf collapses above ~200 cars | Spatial partition per lane (cars already sorted by `s`), cull rendering, and cap sim steps per frame before frame rate. Profile at 300 cars from slice 1. |
 | Gridlock feels unfair / unrecoverable | Frustration meter drains on recovery; add a costly "clear the box" emergency action so a deadlock is a setback, not an instant loss. |
 | Road drawing is imprecise with a thumb | Snap aggressively to grid and existing nodes; show the committed geometry before release; always undoable. |
-| Scope creep across milestones | M1 is defined to be independently shippable. Nothing from M2/M3 may be started until M1's acceptance criteria pass. |
+| Scope creep across slices | Every slice is independently shippable and playable on a phone. A slice may not begin until the previous one is deployed and green. When a slice runs long, cut its polish — never its tests. |
+| Later slices need refactors that break earlier ones | Expected and fine. The sim's data model (§5) is designed for the full feature set from day one even though slice 1 uses a fraction of it — lanes are arrays, controls are a union, turns are explicit — so adding roundabouts or turn lanes extends the model rather than rewriting it. |
