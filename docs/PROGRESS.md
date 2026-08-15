@@ -23,13 +23,19 @@ Two systems, deliberately non-overlapping — keep it that way or they will drif
 
 | | |
 |---|---|
-| **Slice in progress** | — none — |
-| **Next up** | Slice 1 ([#1](https://github.com/Sebas1337/TrafficJam/issues/1)) |
-| **Live build** | *(not yet deployed)* |
-| **Last updated** | 2026-08-15 — planning only, no code yet |
+| **Slice in progress** | Slice 1 ([#1](https://github.com/Sebas1337/TrafficJam/issues/1)) — built, awaiting human phone verification |
+| **Next up** | Human acceptance pass on a real phone, then slice 2 |
+| **Live build** | GitHub Pages via Actions (deploys from the working branch; URL in the Actions run) |
+| **Last updated** | 2026-08-15 — slice 1 implementation complete, 14/14 tests green |
 
-**What exists today:** design documentation only (`GAME_SPEC.md`,
-`BUILD_PROMPT.md`, this file) and the seven slice issues. No application code.
+**What exists today:** the full slice-1 game. Deterministic sim (IDM + phantom
+leaders, derived signal phases, spillback), seeded corridor-grid map generator,
+route trees, demand ramp, frustration/game-over, two-layer canvas renderer,
+pan/pinch/tap input, signal timing editor (cycle/split/offset bottom sheet),
+HUD, PWA (manifest + offline service worker + icons), CI deploy workflow.
+Verified headlessly over CDP: boots, sim advances, tap opens editor, retiming
+applies, 60 fps with 160 cars injected. **Not yet verified on a real phone** —
+the acceptance boxes on issue #1 stay unticked until a human does that.
 
 ---
 
@@ -40,6 +46,12 @@ future sessions don't re-litigate them. One line each: the decision, and why.
 
 | Date | Slice | Decision |
 |---|---|---|
+| 2026-08-15 | 1 | Map generation simplified from spec §6 (organic subdivision) to a seeded corridor grid: 2-3 vertical × 2-3 horizontal arterials whose crossings are the 4-6 signals. Right shape for a small all-signalised map; the organic generator arrives with slice 3 when player-built roads make bigger maps matter. |
+| 2026-08-15 | 1 | Single lane per direction everywhere. The data model carries lane arrays (spec §5) so slice 5 widens rather than rewrites. |
+| 2026-08-15 | 1 | Permissive left turns: lefts yield to opposing through traffic via a gap check, and box entry requires all conflicting connections empty. Protected left phases can come with turn lanes (slice 5). |
+| 2026-08-15 | 1 | `World.failureEnabled` flag added: fixtures/tests that engineer long jams need frustration not to end the run. Campaign/sandbox will reuse it. |
+| 2026-08-15 | 1 | Frustration rates retuned (fill 0.022/s, queue 0.012/s) after a CDP soak test showed game over in 41 s of jam — too twitchy to fight back against. |
+| 2026-08-15 | 1 | Determinism lint implemented as a vitest source-scan (no eslint), keeping the dev-dependency invariant (vite/typescript/vitest only). Node builtins for tests typed via a local ambient declaration instead of @types/node, same reason. |
 | 2026-08-15 | plan | GitHub issues own the per-slice checklists; this file owns state, decisions, and known issues. Avoids two drifting task lists. |
 | 2026-08-15 | plan | Slice 1 has no road building — retiming a fixed map is a complete game, and it proves the sim feels good before an editor is layered on. |
 | 2026-08-15 | plan | Spillback lands in slice 1 despite sounding advanced; without it signal timing barely matters and slice 1 is a screensaver. |
@@ -55,4 +67,15 @@ future sessions don't re-litigate them. One line each: the decision, and why.
 Anything knowingly left broken or unfinished. Empty is a valid state — an
 inaccurate empty is not.
 
-*(none yet)*
+- **Demand/frustration balance is untested by feel.** Constants (§4 demand,
+  frustration rates) are tuned from headless soak tests, not play. Expect a
+  balance pass after the first real phone sessions.
+- **The slice-1 map holds ~75 cars in practice** (small corridor grid). The
+  "60 fps with 150 cars" criterion was verified by injecting 160 cars as a
+  perf fixture; organic play on this map won't reach that count. Fine for
+  slice 1; bigger maps come with slice 3.
+- **Render interpolation uses the previous tick's pose** — at 4× speed with a
+  full step backlog, cars can visibly skip. Invisible at 1×/2×.
+- **`enforceNoOverlap` is a hard clamp** guaranteeing the collision invariant
+  even where Euler integration overshoots; in extreme jams it can very
+  occasionally read as a small "snap". Cosmetic only.
