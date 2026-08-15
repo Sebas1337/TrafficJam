@@ -11,8 +11,8 @@ gridlock is emergent, and it ends your run via the frustration meter.
 
 ## Play
 
-Deployed via GitHub Actions to GitHub Pages (see the Actions tab for the live
-URL). Add `?seed=12345` to the URL to play a specific town. Install to your
+Live at **https://sebas1337.github.io/TrafficJam/** (deployed by GitHub Actions
+to the gh-pages branch). Add `?seed=12345` to the URL to play a specific town. Install to your
 homescreen for offline play (PWA).
 
 - **Drag / pinch** — pan and zoom
