@@ -48,10 +48,10 @@ export const PORTAL_QUEUE_LIMIT = 12; // queued cars considered "overflowing"
 
 // Frustration meter (spec §10): fills on sustained stoppage, drains on flow.
 export const FRUSTRATION_STOP_THRESHOLD = 0.35; // fraction of cars stopped
-export const FRUSTRATION_FILL_RATE = 0.05; // per s at 100% over threshold
-export const FRUSTRATION_QUEUE_RATE = 0.03; // per s at full portal queues
-export const FRUSTRATION_DRAIN_FAST = 0.015; // per s when flowing freely
-export const FRUSTRATION_DRAIN_SLOW = 0.004; // per s otherwise
+export const FRUSTRATION_FILL_RATE = 0.022; // per s at 100% over threshold
+export const FRUSTRATION_QUEUE_RATE = 0.012; // per s at full portal queues
+export const FRUSTRATION_DRAIN_FAST = 0.02; // per s when flowing freely
+export const FRUSTRATION_DRAIN_SLOW = 0.005; // per s otherwise
 
 // Destination colours (spec §12).
 export const PORTAL_COLORS: readonly string[] = [
