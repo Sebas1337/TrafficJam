@@ -71,6 +71,17 @@ export function movementState(p: SignalProgram, movement: ConnId, simTime: numbe
   return 'red';
 }
 
+/** Cycle-local green window [start, end) for a movement, or null if never green. */
+export function movementGreenWindow(
+  p: SignalProgram,
+  movement: ConnId,
+): { start: number; end: number } | null {
+  for (const w of windows(p)) {
+    if (w.movements.includes(movement)) return { start: w.greenStart, end: w.greenEnd };
+  }
+  return null;
+}
+
 /** Seconds until this movement next turns green (0 if green now). */
 export function timeToGreen(p: SignalProgram, movement: ConnId, simTime: number): number {
   if (movementState(p, movement, simTime) === 'green') return 0;

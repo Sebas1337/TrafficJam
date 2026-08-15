@@ -9,8 +9,8 @@ Two systems, deliberately non-overlapping — keep it that way or they will drif
 
 | Slice | Issue | Status |
 |---|---|---|
-| 1 — Time the lights | [#1](https://github.com/Sebas1337/TrafficJam/issues/1) | not started |
-| 2 — Green waves | [#2](https://github.com/Sebas1337/TrafficJam/issues/2) | blocked by #1 |
+| 1 — Time the lights | [#1](https://github.com/Sebas1337/TrafficJam/issues/1) | ✅ shipped, human-accepted |
+| 2 — Green waves | [#2](https://github.com/Sebas1337/TrafficJam/issues/2) | built, awaiting phone verification |
 | 3 — Build | [#3](https://github.com/Sebas1337/TrafficJam/issues/3) | blocked by #1 |
 | 4 — Intersection variety | [#4](https://github.com/Sebas1337/TrafficJam/issues/4) | blocked by #3 |
 | 5 — Lanes | [#5](https://github.com/Sebas1337/TrafficJam/issues/5) | blocked by #3 |
@@ -23,19 +23,22 @@ Two systems, deliberately non-overlapping — keep it that way or they will drif
 
 | | |
 |---|---|
-| **Slice in progress** | Slice 1 ([#1](https://github.com/Sebas1337/TrafficJam/issues/1)) — built, awaiting human phone verification |
-| **Next up** | Human acceptance pass on a real phone, then slice 2 |
-| **Live build** | https://sebas1337.github.io/TrafficJam/ — CI builds and pushes `gh-pages` on every push; **needs a one-time enable**: Settings → Pages → Source "Deploy from a branch" → `gh-pages` / root |
-| **Last updated** | 2026-08-15 — slice 1 implementation complete, 14/14 tests green |
+| **Slice in progress** | Slice 2 ([#2](https://github.com/Sebas1337/TrafficJam/issues/2)) — built, awaiting human phone verification |
+| **Next up** | Slice 2 acceptance pass on a real phone, then slice 3 "Build" |
+| **Live build** | https://sebas1337.github.io/TrafficJam/ (Pages enabled; auto-deploys on every push) |
+| **Last updated** | 2026-08-15 — slice 2 implementation complete, 16/16 tests green |
 
-**What exists today:** the full slice-1 game. Deterministic sim (IDM + phantom
-leaders, derived signal phases, spillback), seeded corridor-grid map generator,
-route trees, demand ramp, frustration/game-over, two-layer canvas renderer,
-pan/pinch/tap input, signal timing editor (cycle/split/offset bottom sheet),
-HUD, PWA (manifest + offline service worker + icons), CI deploy workflow.
-Verified headlessly over CDP: boots, sim advances, tap opens editor, retiming
-applies, 60 fps with 160 cars injected. **Not yet verified on a real phone** —
-the acceptance boxes on issue #1 stay unticked until a human does that.
+**What exists today:** slice 1 (accepted by the user on a real phone) plus the
+full slice-2 feature set: corridor linking (tap signals in order), the
+full-screen time–space diagram with distance rows, green bands over two
+cycles, both-direction progression lines and a live now-marker, direct
+manipulation (drag band → offset, drag trailing edge → split, pinch/± →
+common cycle), band-efficiency readout for both directions, auto-tune per
+direction, a congestion heatmap toggle, and numbered corridor badges on the
+map. Test 7 (green wave) proves tuned offsets measurably beat zero offsets.
+Verified over CDP: link → diagram → auto-tune lifts ↓ wave 19%→43% (and
+honestly drops ↑ to 0%). **Slice-2 acceptance boxes on issue #2 await the
+user's phone pass.**
 
 ---
 
@@ -46,6 +49,10 @@ future sessions don't re-litigate them. One line each: the decision, and why.
 
 | Date | Slice | Decision |
 |---|---|---|
+| 2026-08-15 | 2 | Linking a corridor normalizes all its signals to a common cycle length (the first signal's) — coordination is only meaningful on a shared cycle, and this makes offsets the single tuning knob. Reopening the diagram re-normalizes if the player diverged cycles via the per-signal sheet. |
+| 2026-08-15 | 2 | Auto-tune aligns green *centres* (not starts) along the progression line, keeping the first signal in travel order fixed. Free in slice 2; gets a price when the economy lands (slice 3). |
+| 2026-08-15 | 2 | Progression lines anchor to the first signal's green centre, so dragging S1's band steers the whole wave — "align everything to signal 1" is the mental model. Both directions drawn (solid ↓, dashed ↑) so the two-way trade-off is visible. |
+| 2026-08-15 | 2 | Corridor state lives in the Game (UI layer), not the sim — the sim only ever sees signal programs. Cleared on restart. |
 | 2026-08-15 | 1 | **Playtest feedback round 1:** map relaid out as a portrait "spine town" — one vertical main street, 2-3 signalised cross junctions, portal at every road end (4-5 portals), 320×480 m. The earlier 4-6 signal grid rendered at ~0.6 px/m on a phone: too small, too much at once. Renderer also gained minimum on-screen sizes for cars, roads, and signal heads. |
 | 2026-08-15 | 1 | **Playtest feedback round 1:** signal editor gained a live phase timeline (↑↓/←→ strips coloured across one cycle + a moving now-marker) after feedback that the sliders were opaque. Doubles as the visual language for the slice-2 time–space diagram. |
 | 2026-08-15 | 1 | Map generation simplified from spec §6 (organic subdivision) to a seeded corridor layout; the organic generator arrives with slice 3 when player-built roads make bigger maps matter. |

@@ -7,6 +7,7 @@ import { DT, NODE_BOX_RADIUS } from './sim/constants';
 import { generateMap } from './sim/mapgen';
 import type { NodeId } from './sim/network';
 import { World } from './sim/sim';
+import { TimeSpaceDiagram } from './ui/diagram';
 import { buildHud, updateHud, type HudElements } from './ui/hud';
 import { attachInput } from './ui/input';
 import { SignalEditor } from './ui/signalEditor';
@@ -18,6 +19,12 @@ export class Game {
   cam = new Camera();
   private hud: HudElements;
   editor: SignalEditor;
+  diagram: TimeSpaceDiagram;
+  corridor: NodeId[] = [];
+  private linkMode = false;
+  private heatmap = false;
+  private banner!: HTMLElement;
+  private heatBtn!: HTMLButtonElement;
   private staticCanvas: HTMLCanvasElement;
   private dynamicCanvas: HTMLCanvasElement;
   private staticCtx: CanvasRenderingContext2D;
@@ -43,6 +50,9 @@ export class Game {
 
     this.hud = buildHud(root, (m) => (this.speed = m));
     this.editor = new SignalEditor(root, this.world);
+    this.diagram = new TimeSpaceDiagram(root, this.world);
+    this.diagram.onRelink = () => this.enterLinkMode();
+    this.buildFabs();
 
     this.seedTag = document.createElement('div');
     this.seedTag.id = 'seed-tag';
@@ -87,7 +97,7 @@ export class Game {
     if (keepView) this.cam.resize(w, h);
   }
 
-  private handleTap(x: number, y: number): void {
+  private hitSignal(x: number, y: number): NodeId | null {
     // Generous hit radius (spec §9): larger of 30 px or the box itself.
     const hitPx = Math.max(30, NODE_BOX_RADIUS * this.cam.scale * 1.6);
     let best: NodeId | null = null;
@@ -100,8 +110,78 @@ export class Game {
         bestD = d;
       }
     }
-    if (best !== null) this.editor.open(best);
+    return best;
+  }
+
+  private handleTap(x: number, y: number): void {
+    const hit = this.hitSignal(x, y);
+    if (this.linkMode) {
+      if (hit !== null && !this.corridor.includes(hit)) {
+        this.corridor.push(hit);
+        this.updateBanner();
+      }
+      return;
+    }
+    if (hit !== null) this.editor.open(hit);
     else if (this.editor.isOpen) this.editor.close();
+  }
+
+  // ------------------------------------------------------- corridor linking
+
+  private buildFabs(): void {
+    const fabs = document.createElement('div');
+    fabs.id = 'fabs';
+    fabs.innerHTML = `
+      <button data-heat aria-label="Congestion heatmap">▦</button>
+      <button data-corridor aria-label="Green wave">📈</button>`;
+    this.root.appendChild(fabs);
+    this.heatBtn = fabs.querySelector('[data-heat]')!;
+    this.heatBtn.addEventListener('click', () => {
+      this.heatmap = !this.heatmap;
+      this.heatBtn.classList.toggle('active', this.heatmap);
+    });
+    fabs.querySelector('[data-corridor]')!.addEventListener('click', () => {
+      if (this.linkMode) return;
+      if (this.corridor.length >= 2) this.diagram.open(this.corridor);
+      else this.enterLinkMode();
+    });
+
+    this.banner = document.createElement('div');
+    this.banner.id = 'banner';
+    this.banner.className = 'hidden';
+    this.root.appendChild(this.banner);
+  }
+
+  enterLinkMode(): void {
+    this.linkMode = true;
+    this.corridor = [];
+    this.editor.close();
+    this.banner.classList.remove('hidden');
+    this.updateBanner();
+  }
+
+  private updateBanner(): void {
+    const n = this.corridor.length;
+    this.banner.innerHTML = `
+      <span>${n === 0 ? 'Tap the signals along one street, in driving order' : `${n} linked — keep tapping or press Done`}</span>
+      <button data-done ${n < 2 ? 'disabled' : ''}>Done</button>
+      <button data-cancel class="ghost">Cancel</button>`;
+    this.banner.querySelector('[data-done]')!.addEventListener('click', () => {
+      this.linkMode = false;
+      this.banner.classList.add('hidden');
+      this.diagram.open(this.corridor);
+    });
+    this.banner.querySelector('[data-cancel]')!.addEventListener('click', () => {
+      this.linkMode = false;
+      this.corridor = [];
+      this.banner.classList.add('hidden');
+    });
+  }
+
+  /** Debug/test hook: link a corridor and open the diagram directly. */
+  openCorridorWith(nodes: NodeId[]): void {
+    this.corridor = [...nodes];
+    this.diagram.open(this.corridor);
   }
 
   private frame(t: number): void {
@@ -124,7 +204,11 @@ export class Game {
       this.cam.changed = false;
     }
     const alpha = this.speed > 0 ? Math.min(this.accumulator / DT, 1) : 1;
-    drawDynamic(this.dynamicCtx, this.world, this.cam, alpha, this.editor.node);
+    drawDynamic(this.dynamicCtx, this.world, this.cam, alpha, {
+      selectedNode: this.editor.node,
+      corridor: this.corridor,
+      heatmap: this.heatmap,
+    });
 
     updateHud(
       this.hud,
@@ -134,6 +218,7 @@ export class Game {
       this.world.metrics.frustration,
     );
     this.editor.tick();
+    this.diagram.tick();
 
     if (this.world.over && this.overlay.classList.contains('hidden')) this.showGameOver();
 
@@ -161,6 +246,10 @@ export class Game {
     this.seed = seed;
     this.world = new World(generateMap(seed).net, seed);
     this.editor.setWorld(this.world);
+    this.diagram.setWorld(this.world);
+    this.corridor = [];
+    this.linkMode = false;
+    this.banner.classList.add('hidden');
     this.overlay.classList.add('hidden');
     this.seedTag.textContent = `seed ${seed}`;
     this.speed = 1;

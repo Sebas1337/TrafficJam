@@ -117,17 +117,72 @@ export function drawStatic(ctx: CanvasRenderingContext2D, net: Network, cam: Cam
   }
 }
 
+export interface DynamicUi {
+  selectedNode: NodeId | null;
+  corridor: NodeId[];
+  heatmap: boolean;
+}
+
 export function drawDynamic(
   ctx: CanvasRenderingContext2D,
   world: World,
   cam: Camera,
   alpha: number,
-  selectedNode: NodeId | null,
+  ui: DynamicUi,
 ): void {
   ctx.clearRect(0, 0, cam.viewW, cam.viewH);
+  if (ui.heatmap) drawHeatmap(ctx, world, cam);
   drawSignalHeads(ctx, world, cam);
-  if (selectedNode !== null) drawSelection(ctx, world, cam, selectedNode);
+  if (ui.selectedNode !== null) drawSelection(ctx, world, cam, ui.selectedNode);
   drawCars(ctx, world, cam, alpha);
+  if (ui.corridor.length > 0) drawCorridorBadges(ctx, world, cam, ui.corridor);
+}
+
+/** Congestion heatmap (spec §9): lanes tinted by how far below the limit
+ * their traffic is moving. Empty lanes stay untinted. */
+function drawHeatmap(ctx: CanvasRenderingContext2D, world: World, cam: Camera): void {
+  const net = world.net;
+  ctx.lineCap = 'round';
+  for (const lane of net.lanes) {
+    if (lane.cars.length === 0) continue;
+    let meanV = 0;
+    for (const id of lane.cars) meanV += world.cars.get(id)!.v;
+    meanV /= lane.cars.length;
+    const limit = net.edges[lane.edge].speedLimit;
+    const c = Math.max(0, Math.min(1, 1 - meanV / limit));
+    const r = Math.round(47 + (244 - 47) * c);
+    const g = Math.round(210 + (85 - 210) * c);
+    const b = Math.round(116 + (63 - 116) * c);
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.55)`;
+    ctx.lineWidth = Math.max(6, LANE_WIDTH * 1.6 * cam.scale);
+    ctx.beginPath();
+    ctx.moveTo(cam.toScreenX(lane.start.x), cam.toScreenY(lane.start.y));
+    ctx.lineTo(cam.toScreenX(lane.end.x), cam.toScreenY(lane.end.y));
+    ctx.stroke();
+  }
+}
+
+/** Numbered badges on linked signals so the diagram's S1/S2/S3 map back. */
+function drawCorridorBadges(
+  ctx: CanvasRenderingContext2D,
+  world: World,
+  cam: Camera,
+  corridor: NodeId[],
+): void {
+  corridor.forEach((nodeId, i) => {
+    const node = world.net.nodes[nodeId];
+    const sx = cam.toScreenX(node.pos.x) + Math.max(14, NODE_BOX_RADIUS * cam.scale);
+    const sy = cam.toScreenY(node.pos.y) - Math.max(14, NODE_BOX_RADIUS * cam.scale);
+    ctx.fillStyle = '#f2f6fc';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10151c';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${i + 1}`, sx, sy + 0.5);
+  });
 }
 
 function drawCars(ctx: CanvasRenderingContext2D, world: World, cam: Camera, alpha: number): void {
