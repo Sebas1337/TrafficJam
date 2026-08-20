@@ -4,10 +4,12 @@ A mobile-first traffic management game. Top-down randomly generated town, cars
 driving between labelled portals (A/B/C), and you keeping the traffic flowing —
 for now by retiming the traffic signals; later by building the network itself.
 
-**Slice 1 — "Time the lights":** the map is generated and already signalised.
-The entire game is retiming those signals (cycle, split, offset) to keep
-traffic moving as demand ramps up. Queues spill back through intersections;
-gridlock is emergent, and it ends your run via the frustration meter.
+All seven planned slices exist: signal timing (cycle/split/offset), green-wave
+coordination on a time-space diagram, road building with an economy, stop
+signs and roundabouts, multi-lane arterials, a 15-level campaign, and
+pedestrians competing for green time. Queues spill back through
+intersections; gridlock is emergent, and it ends your run via the
+frustration meter. See `docs/PROGRESS.md` for what is polished vs. rough.
 
 ## Play
 
@@ -16,8 +18,11 @@ to the gh-pages branch). Add `?seed=12345` to the URL to play a specific town. I
 homescreen for offline play (PWA).
 
 - **Drag / pinch** — pan and zoom
-- **Tap a signal** — open the timing editor (works while paused)
-- **⏸ / 1× / 2× / 4×** — pause and speed controls
+- **Tap a junction or road** — inspect: control type, timing, widen, demolish
+- **🛣** — build roads (drag from a road or junction; snaps to grid)
+- **📈** — link signals into a corridor and tune the green wave
+- **▦ / ↩ / ☰** — heatmap, undo, menu
+- **⏸ / 1× / 2× / 4×** — pause and speed controls (edit while paused!)
 
 ## Develop
 
