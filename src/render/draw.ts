@@ -42,11 +42,14 @@ export function drawStatic(ctx: CanvasRenderingContext2D, net: Network, cam: Cam
   );
 
   // Fatten roads at low zoom so the network stays readable on a phone.
-  const roadW = Math.max(8, LANE_WIDTH * 2 * cam.scale);
+  const widthOf = (lanesTotal: number): number =>
+    Math.max(8, LANE_WIDTH * lanesTotal * cam.scale);
 
   // Road bodies.
   ctx.lineCap = 'round';
   for (const e of net.edges) {
+    if (e.dead) continue;
+    const roadW = widthOf(e.forward.length + e.backward.length);
     const a = net.nodes[e.from].pos;
     const b = net.nodes[e.to].pos;
     ctx.strokeStyle = ROAD_EDGE;
@@ -68,22 +71,20 @@ export function drawStatic(ctx: CanvasRenderingContext2D, net: Network, cam: Cam
   ctx.lineWidth = Math.max(1, 0.25 * cam.scale);
   ctx.setLineDash([3 * cam.scale, 4 * cam.scale]);
   for (const e of net.edges) {
-    const f = net.lanes[e.forward[0]];
-    // Centre line runs between the two directions: lane start minus offset.
-    const off = { x: f.start.x - f.direction.y * 0, y: f.start.y };
-    void off;
+    if (e.dead) continue;
     const a = net.nodes[e.from].pos;
     const b = net.nodes[e.to].pos;
     line(ctx, cam, a.x, a.y, b.x, b.y);
   }
   ctx.setLineDash([]);
 
-  // Stop lines at signalised approaches.
+  // Stop lines at signalised and stop-controlled approaches.
   ctx.strokeStyle = '#cfd4dc';
   ctx.lineWidth = Math.max(1, 0.4 * cam.scale);
   for (const lane of net.lanes) {
+    if (lane.dead) continue;
     const node = net.nodes[lane.toNode];
-    if (node.control.type !== 'signal') continue;
+    if (node.control.type !== 'signal' && node.control.type !== 'stop') continue;
     const d = lane.direction;
     const n = { x: -d.y, y: d.x };
     const cx = lane.end.x;
@@ -117,10 +118,18 @@ export function drawStatic(ctx: CanvasRenderingContext2D, net: Network, cam: Cam
   }
 }
 
+export interface RoadDraft {
+  a: { x: number; y: number };
+  b: { x: number; y: number };
+  legal: boolean;
+  cost: number;
+}
+
 export interface DynamicUi {
   selectedNode: NodeId | null;
   corridor: NodeId[];
   heatmap: boolean;
+  draft: RoadDraft | null;
 }
 
 export function drawDynamic(
@@ -132,10 +141,105 @@ export function drawDynamic(
 ): void {
   ctx.clearRect(0, 0, cam.viewW, cam.viewH);
   if (ui.heatmap) drawHeatmap(ctx, world, cam);
+  drawControlGlyphs(ctx, world, cam);
   drawSignalHeads(ctx, world, cam);
+  drawPedestrians(ctx, world, cam);
   if (ui.selectedNode !== null) drawSelection(ctx, world, cam, ui.selectedNode);
   drawCars(ctx, world, cam, alpha);
   if (ui.corridor.length > 0) drawCorridorBadges(ctx, world, cam, ui.corridor);
+  if (ui.draft) drawDraft(ctx, cam, ui.draft);
+}
+
+/** Road-building preview: dashed line + cost bubble, red when illegal. */
+function drawDraft(ctx: CanvasRenderingContext2D, cam: Camera, draft: RoadDraft): void {
+  const ax = cam.toScreenX(draft.a.x);
+  const ay = cam.toScreenY(draft.a.y);
+  const bx = cam.toScreenX(draft.b.x);
+  const by = cam.toScreenY(draft.b.y);
+  ctx.strokeStyle = draft.legal ? '#2fd274' : '#f4553f';
+  ctx.lineWidth = Math.max(6, 6 * cam.scale * 0.5);
+  ctx.setLineDash([10, 8]);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(bx, by);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const mx = (ax + bx) / 2;
+  const my = (ay + by) / 2 - 18;
+  ctx.font = 'bold 13px system-ui, sans-serif';
+  const label = draft.legal ? `$${draft.cost}` : '✕';
+  const w = ctx.measureText(label).width + 14;
+  ctx.fillStyle = '#10151cdd';
+  ctx.beginPath();
+  ctx.roundRect(mx - w / 2, my - 12, w, 22, 8);
+  ctx.fill();
+  ctx.fillStyle = draft.legal ? '#2fd274' : '#f4553f';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, mx, my);
+}
+
+/** Stop signs and roundabout rings at non-signal intersections. */
+function drawControlGlyphs(ctx: CanvasRenderingContext2D, world: World, cam: Camera): void {
+  const net = world.net;
+  for (const node of net.nodes) {
+    if (node.control.type === 'roundabout') {
+      const sx = cam.toScreenX(node.pos.x);
+      const sy = cam.toScreenY(node.pos.y);
+      ctx.strokeStyle = '#cfd4dc';
+      ctx.lineWidth = Math.max(2.5, 1.4 * cam.scale);
+      ctx.beginPath();
+      ctx.arc(sx, sy, Math.max(6, 4.5 * cam.scale), 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (node.control.type === 'stop') {
+      for (const laneId of node.control.stoppedApproaches) {
+        const lane = net.lanes[laneId];
+        if (lane.dead) continue;
+        const n = { x: -lane.direction.y, y: lane.direction.x };
+        const sx = cam.toScreenX(lane.end.x + n.x * 3.2);
+        const sy = cam.toScreenY(lane.end.y + n.y * 3.2);
+        ctx.fillStyle = '#d23b3b';
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(3, 1.4 * cam.scale), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+/** Waiting-count badges and crossing dots during walk phases. */
+function drawPedestrians(ctx: CanvasRenderingContext2D, world: World, cam: Camera): void {
+  for (const node of world.net.nodes) {
+    if (node.control.type !== 'signal') continue;
+    const sx = cam.toScreenX(node.pos.x);
+    const sy = cam.toScreenY(node.pos.y);
+    if (world.pedWalkActive(node.control.program)) {
+      // A few dots shuttling across the box while the walk phase runs.
+      const r = Math.max(10, NODE_BOX_RADIUS * cam.scale * 0.8);
+      for (let i = 0; i < 3; i++) {
+        const t = (world.time * 0.55 + i * 0.33) % 1;
+        const along = (t * 2 - 1) * r;
+        ctx.fillStyle = '#e8edf4';
+        ctx.beginPath();
+        ctx.arc(sx + along, sy + (i - 1) * 4, Math.max(2, 0.8 * cam.scale), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (node.pedsWaiting > 0) {
+      const bx = sx - Math.max(14, NODE_BOX_RADIUS * cam.scale);
+      const by = sy - Math.max(14, NODE_BOX_RADIUS * cam.scale);
+      ctx.fillStyle = '#8fb7ff';
+      ctx.beginPath();
+      ctx.arc(bx, by, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#10151c';
+      ctx.font = 'bold 10px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(node.pedsWaiting), bx, by + 0.5);
+    }
+  }
 }
 
 /** Congestion heatmap (spec §9): lanes tinted by how far below the limit
@@ -226,6 +330,7 @@ const LIGHT_COLORS: Record<LightState, string> = {
 function drawSignalHeads(ctx: CanvasRenderingContext2D, world: World, cam: Camera): void {
   const net = world.net;
   for (const lane of net.lanes) {
+    if (lane.dead) continue;
     const node = net.nodes[lane.toNode];
     if (node.control.type !== 'signal') continue;
     // Head state: the through movement from this lane (or the first movement).

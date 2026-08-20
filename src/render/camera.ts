@@ -15,9 +15,10 @@ export class Camera {
   fit(viewW: number, viewH: number): void {
     this.viewW = viewW;
     this.viewH = viewH;
-    this.scale = Math.min(viewW / (MAP_W + 60), viewH / (MAP_H + 60));
+    this.scale = Math.min(viewW / (MAP_W + 60), viewH / (MAP_H + 130));
     this.x = MAP_W / 2;
-    this.y = MAP_H / 2;
+    // Bias the view downward so the top portal clears the HUD strip.
+    this.y = MAP_H / 2 - 30 / this.scale;
     this.changed = true;
   }
 

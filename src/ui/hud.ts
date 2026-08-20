@@ -4,6 +4,7 @@ export interface HudElements {
   root: HTMLElement;
   throughput: HTMLElement;
   delivered: HTMLElement;
+  money: HTMLElement;
   clock: HTMLElement;
   frustrationFill: HTMLElement;
   speedButtons: HTMLButtonElement[];
@@ -17,7 +18,7 @@ export function buildHud(
   root.id = 'hud';
   root.innerHTML = `
     <div class="stat"><span class="value" data-th>0</span><span class="label">cars/min</span></div>
-    <div class="stat"><span class="value" data-del>0</span><span class="label">delivered</span></div>
+    <div class="stat"><span class="value" data-money>$0</span><span class="label">funds</span></div>
     <div id="frustration"><div></div></div>
     <div class="stat"><span class="value" data-clock>0:00</span><span class="label">time</span></div>
     <div id="speeds">
@@ -25,7 +26,8 @@ export function buildHud(
       <button data-speed="1" class="active">1×</button>
       <button data-speed="2">2×</button>
       <button data-speed="4">4×</button>
-    </div>`;
+    </div>
+    <div class="stat hidden" data-del-wrap><span class="value" data-del>0</span><span class="label">delivered</span></div>`;
   parent.appendChild(root);
 
   const speedButtons = [...root.querySelectorAll<HTMLButtonElement>('#speeds button')];
@@ -41,6 +43,7 @@ export function buildHud(
     root,
     throughput: root.querySelector('[data-th]')!,
     delivered: root.querySelector('[data-del]')!,
+    money: root.querySelector('[data-money]')!,
     clock: root.querySelector('[data-clock]')!,
     frustrationFill: root.querySelector('#frustration > div')!,
     speedButtons,
@@ -50,12 +53,12 @@ export function buildHud(
 export function updateHud(
   hud: HudElements,
   throughput: number,
-  delivered: number,
+  money: number,
   simTime: number,
   frustration: number,
 ): void {
   hud.throughput.textContent = String(throughput);
-  hud.delivered.textContent = String(delivered);
+  hud.money.textContent = `$${Math.floor(money)}`;
   const m = Math.floor(simTime / 60);
   const s = Math.floor(simTime % 60);
   hud.clock.textContent = `${m}:${s.toString().padStart(2, '0')}`;

@@ -6,10 +6,12 @@ import { Game } from './game';
 // one intentional source of run-to-run variety.
 const params = new URLSearchParams(location.search);
 const urlSeed = Number(params.get('seed'));
-const seed = Number.isInteger(urlSeed) && urlSeed > 0 ? urlSeed : Date.now() % 1000000;
+const hasUrlSeed = Number.isInteger(urlSeed) && urlSeed > 0;
+const seed = hasUrlSeed ? urlSeed : Date.now() % 1000000;
 
 const root = document.getElementById('app')!;
-const game = new Game(root, seed);
+// A ?seed= URL jumps straight into that town; otherwise the menu decides.
+const game = new Game(root, seed, hasUrlSeed);
 // Debug handle for headless smoke tests and console poking.
 (window as unknown as { __tj: Game }).__tj = game;
 

@@ -15,9 +15,9 @@ import {
   type CorridorDir,
   type CorridorInfo,
 } from '../sim/corridor';
-import { CYCLE_MAX, CYCLE_MIN, YELLOW } from '../sim/constants';
+import { AUTOTUNE_COST, CYCLE_MAX, CYCLE_MIN, YELLOW } from '../sim/constants';
 import type { NodeId } from '../sim/network';
-import { movementGreenWindow } from '../sim/signals';
+import { movementGreenWindow, programPed } from '../sim/signals';
 import type { World } from '../sim/sim';
 
 const GREEN = '#2fd274';
@@ -68,8 +68,8 @@ export class TimeSpaceDiagram {
           <span data-cycle>60s</span>
           <button data-cyc="5" aria-label="Longer cycle">+</button>
         </div>
-        <button data-tune="down">Auto ↓</button>
-        <button data-tune="up">Auto ↑</button>
+        <button data-tune="down">Auto ↓ <small>$${AUTOTUNE_COST}</small></button>
+        <button data-tune="up">Auto ↑ <small>$${AUTOTUNE_COST}</small></button>
         <button data-relink class="ghost">Re-link</button>
       </footer>`;
     parent.appendChild(this.root);
@@ -90,6 +90,10 @@ export class TimeSpaceDiagram {
     for (const btn of this.root.querySelectorAll<HTMLButtonElement>('[data-tune]')) {
       btn.addEventListener('click', () => {
         if (!this.info) return;
+        if (!this.world.spend(AUTOTUNE_COST)) {
+          this.effEl.innerHTML = `<span class="bad">need $${AUTOTUNE_COST} for auto-tune</span>`;
+          return;
+        }
         autoTune(this.world, this.info, btn.dataset.tune as CorridorDir);
         this.refreshStats();
       });
@@ -193,6 +197,15 @@ export class TimeSpaceDiagram {
           this.rect(ctx, s + band.len, y, YELLOW, BAND_H, AMBER);
           this.rect(ctx, s + C, y, band.len, BAND_H, GREEN);
           this.rect(ctx, s + C + band.len, y, YELLOW, BAND_H, AMBER);
+        }
+      }
+      // Pedestrian walk slot (slice 7): the blue window the wave must dodge.
+      const program = this.world.signalProgram(this.info.nodes[i]);
+      const ped = program ? programPed(program) : 0;
+      if (program && ped > 0) {
+        const pedStart = (((C - ped - program.offset) % C) + C) % C;
+        for (const k of [-1, 0, 1]) {
+          this.rect(ctx, pedStart + k * C, y, ped, BAND_H, '#3f5f96');
         }
       }
       // Label.

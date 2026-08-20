@@ -110,6 +110,7 @@ canvas {
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 30; /* above FABs and toolbars */
   background: #1a212b;
   border-radius: 18px 18px 0 0;
   padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
@@ -279,6 +280,7 @@ input[type='range']::-moz-range-thumb {
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 50; /* menus and stats above everything */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -346,6 +348,187 @@ input[type='range']::-moz-range-thumb {
   color: #93a0b4;
   pointer-events: none;
   transition: opacity 0.6s;
+}
+
+/* -------------------------------------------------------------- sheet body */
+
+.ctl-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+button.ctl {
+  flex: 1;
+  min-height: 50px;
+  border: none;
+  border-radius: 12px;
+  background: #232b36;
+  color: #cfd8e4;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+button.ctl small {
+  font-size: 11px;
+  color: #93a0b4;
+  font-weight: 600;
+}
+
+button.ctl.active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+button.ctl.danger {
+  background: #46272a;
+  color: #f2a9a0;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 13px;
+  color: #dbe3ee;
+}
+
+.toggle-row input {
+  width: 22px;
+  height: 22px;
+  accent-color: #3b82f6;
+}
+
+.toggle-row small {
+  display: block;
+  color: #7d8a9d;
+  font-size: 11px;
+}
+
+.road-info {
+  font-size: 13px;
+  color: #aeb9c9;
+  margin: 2px 0 4px;
+}
+
+/* ------------------------------------------------------------ menu screens */
+
+.level-tag {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3b82f6;
+}
+
+.level-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, 86vw);
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.level-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  border: none;
+  border-radius: 12px;
+  background: #1a212b;
+  color: #dbe3ee;
+  font-size: 14px;
+  padding: 0 14px;
+  text-align: left;
+}
+
+.level-row .num {
+  font-weight: 800;
+  color: #3b82f6;
+  min-width: 20px;
+}
+
+.level-row .name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.level-row .stars {
+  color: #f5c445;
+  letter-spacing: 0.1em;
+}
+
+.level-row.locked {
+  opacity: 0.45;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 26px;
+  margin: 6px 0 10px;
+}
+
+.stat-grid div {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-grid b {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-grid span {
+  font-size: 11px;
+  color: #93a0b4;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stars-line {
+  color: #f5c445;
+  letter-spacing: 0.12em;
+}
+
+#seed-tag.flash {
+  color: #f4553f;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------ tool toolbar */
+
+#tools {
+  position: absolute;
+  left: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#tools button {
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 50%;
+  background: #1d242e;
+  color: #cfd8e4;
+  font-size: 21px;
+  box-shadow: 0 3px 12px #0007;
+}
+
+#tools button.active {
+  background: #2fd274;
+  color: #10251a;
 }
 
 /* --------------------------------------------------------- floating buttons */
