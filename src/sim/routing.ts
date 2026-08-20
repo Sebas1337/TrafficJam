@@ -33,6 +33,7 @@ export function buildRouteTree(net: Network, dest: NodeId): RouteTree {
   // Terminal lanes end at the destination portal.
   const queue: Array<{ lane: LaneId; c: number }> = [];
   for (const lane of net.lanes) {
+    if (lane.dead) continue;
     if (lane.toNode === dest) {
       cost[lane.id] = laneTime(net, lane.id);
       queue.push({ lane: lane.id, c: cost[lane.id] });

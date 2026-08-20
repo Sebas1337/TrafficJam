@@ -96,8 +96,9 @@ export function timeToGreen(p: SignalProgram, movement: ConnId, simTime: number)
 }
 
 /**
- * Build a two-phase program from the player-facing knobs:
- * cycle length, split (share of the cycle given to phase 0), offset.
+ * Build a program from the player-facing knobs: cycle length, split (share of
+ * the *vehicle* time given to phase 0), offset, and an optional pedestrian
+ * walk phase (all movements red) appended at the end of the cycle.
  */
 export function makeProgram(
   phase0Movements: ConnId[],
@@ -105,27 +106,38 @@ export function makeProgram(
   cycleLength: number,
   split: number,
   offset: number,
+  pedSeconds = 0,
 ): SignalProgram {
   const cycle = clamp(cycleLength, CYCLE_MIN, CYCLE_MAX);
   const lost = YELLOW + ALL_RED;
-  const minShare = (MIN_GREEN + lost) / cycle;
+  const vehicle = cycle - pedSeconds;
+  const minShare = (MIN_GREEN + lost) / vehicle;
   const s = clamp(split, minShare, 1 - minShare);
-  const d0 = cycle * s;
-  const d1 = cycle - d0;
+  const d0 = vehicle * s;
+  const d1 = vehicle - d0;
+  const phases: SignalPhase[] = [
+    { movements: phase0Movements, green: d0 - lost, yellow: YELLOW, allRed: ALL_RED },
+    { movements: phase1Movements, green: d1 - lost, yellow: YELLOW, allRed: ALL_RED },
+  ];
+  if (pedSeconds > 0) phases.push({ movements: [], green: pedSeconds, yellow: 0, allRed: 0 });
   return {
     cycleLength: cycle,
     offset: ((offset % cycle) + cycle) % cycle,
-    phases: [
-      { movements: phase0Movements, green: d0 - lost, yellow: YELLOW, allRed: ALL_RED },
-      { movements: phase1Movements, green: d1 - lost, yellow: YELLOW, allRed: ALL_RED },
-    ],
+    phases,
   };
 }
 
-/** Player-facing split derived back from the phases. */
+/** Player-facing split derived back from the phases (vehicle time only). */
 export function programSplit(p: SignalProgram): number {
   const ph = p.phases[0];
-  return (ph.green + ph.yellow + ph.allRed) / p.cycleLength;
+  const vehicle = p.cycleLength - programPed(p);
+  return (ph.green + ph.yellow + ph.allRed) / vehicle;
+}
+
+/** Seconds of pedestrian walk phase in the program (0 if none). */
+export function programPed(p: SignalProgram): number {
+  const ped = p.phases[2];
+  return ped ? ped.green + ped.yellow + ped.allRed : 0;
 }
 
 function clamp(x: number, lo: number, hi: number): number {

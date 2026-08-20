@@ -1,6 +1,7 @@
 // Network graph (spec §5): nodes, edges, lanes, turn connections.
-// The model carries the full-game shape (lane arrays, control union, explicit
-// turns) even though slice 1 uses single-lane roads and signals only.
+// Supports runtime editing (slice 3): edges/lanes are tombstoned (`dead`)
+// rather than removed so ids stay stable, and connections are derived data
+// that can be rebuilt wholesale after any topology change.
 
 import {
   LANE_WIDTH,
@@ -35,6 +36,7 @@ export interface RoadNode {
   portal?: PortalLabel;
   control: IntersectionControl;
   edges: EdgeId[];
+  pedsWaiting: number; // slice 7: pedestrians queued to cross here
 }
 
 export interface RoadEdge {
@@ -46,24 +48,25 @@ export interface RoadEdge {
   speedLimit: number;
   forward: LaneId[]; // travel from -> to; index 0 = rightmost
   backward: LaneId[]; // travel to -> from
+  dead: boolean;
+  playerBuilt: boolean; // affects demolition refunds
 }
 
 export interface Lane {
   id: LaneId;
   edge: EdgeId;
-  dir: 1 | -1; // 1 = forward (from->to)
-  index: number;
+  dir: 1 | -1;
+  index: number; // 0 = rightmost
   allowedTurns: TurnKind[];
-  // Geometry (slice 1: straight lanes).
   start: Vec2;
   end: Vec2;
   direction: Vec2; // unit
   length: number;
-  fromNode: NodeId; // node at s = 0
-  toNode: NodeId; // node at s = length
-  // Simulation state.
+  fromNode: NodeId;
+  toNode: NodeId;
+  dead: boolean;
   cars: CarId[]; // sorted by s descending (front of queue first)
-  reserved: number; // cars on connections heading into this lane
+  reserved: number;
 }
 
 export interface TurnConnection {
@@ -72,13 +75,13 @@ export interface TurnConnection {
   inLane: LaneId;
   outLane: LaneId;
   kind: TurnKind;
-  path: Vec2[]; // sampled bezier through the box
-  cumLen: number[]; // cumulative length at each path point
+  path: Vec2[];
+  cumLen: number[];
   length: number;
-  maxSpeed: number; // curvature-derived cap
-  conflicts: ConnId[]; // connections whose paths cross or merge with this one
+  maxSpeed: number;
+  conflicts: ConnId[];
   priority: number;
-  cars: CarId[]; // sorted by s descending
+  cars: CarId[];
 }
 
 export interface Network {
@@ -86,12 +89,46 @@ export interface Network {
   edges: RoadEdge[];
   lanes: Lane[];
   connections: TurnConnection[];
-  /** connections leaving each lane, by lane id */
   connsFromLane: ConnId[][];
-  portals: NodeId[]; // sorted by label
+  portals: NodeId[];
 }
 
 const PATH_SAMPLES = 16;
+
+// ---------------------------------------------------------------- geometry
+
+export function nodeTrim(node: RoadNode): number {
+  return node.kind === 'intersection' ? NODE_BOX_RADIUS : 0;
+}
+
+/** Recompute one lane's geometry from current node positions/kinds. */
+export function computeLaneGeometry(nodes: RoadNode[], edge: RoadEdge, lane: Lane): void {
+  const a = nodes[edge.from].pos;
+  const b = nodes[edge.to].pos;
+  const [p, q] = lane.dir === 1 ? [a, b] : [b, a];
+  const d = norm(sub(q, p));
+  const offset = scale(rightNormal(d), LANE_WIDTH * (0.5 + lane.index));
+  const fromNode = lane.dir === 1 ? edge.from : edge.to;
+  const toNode = lane.dir === 1 ? edge.to : edge.from;
+  const trimFrom = nodeTrim(nodes[fromNode]);
+  const trimTo = nodeTrim(nodes[toNode]);
+  lane.start = add(add(p, scale(d, trimFrom)), offset);
+  lane.end = add(add(q, scale(d, -trimTo)), offset);
+  lane.direction = d;
+  lane.fromNode = fromNode;
+  lane.toNode = toNode;
+  lane.length = Math.max(dist(lane.start, lane.end), 1);
+}
+
+/** Turn permissions by lane position: rightmost turns right, leftmost left. */
+export function defaultAllowedTurns(index: number, count: number): TurnKind[] {
+  if (count <= 1) return ['left', 'through', 'right'];
+  if (index === 0) return ['through', 'right'];
+  if (index === count - 1) return ['left', 'through'];
+  return ['through'];
+}
+
+// ----------------------------------------------------------------- builder
 
 export class NetworkBuilder {
   nodes: RoadNode[] = [];
@@ -100,114 +137,129 @@ export class NetworkBuilder {
 
   addNode(pos: Vec2, kind: RoadNode['kind'], portal?: PortalLabel): NodeId {
     const id = this.nodes.length;
-    this.nodes.push({ id, pos, kind, portal, control: { type: 'uncontrolled' }, edges: [] });
+    this.nodes.push({
+      id,
+      pos,
+      kind,
+      portal,
+      control: { type: 'uncontrolled' },
+      edges: [],
+      pedsWaiting: 0,
+    });
     return id;
   }
 
-  addEdge(from: NodeId, to: NodeId, cls: 'arterial' | 'local'): EdgeId {
+  addEdge(
+    from: NodeId,
+    to: NodeId,
+    cls: 'arterial' | 'local',
+    lanesPerDir = 1,
+    playerBuilt = false,
+  ): EdgeId {
     const id = this.edges.length;
-    const a = this.nodes[from].pos;
-    const b = this.nodes[to].pos;
     const edge: RoadEdge = {
       id,
       from,
       to,
       class: cls,
-      length: dist(a, b),
+      length: dist(this.nodes[from].pos, this.nodes[to].pos),
       speedLimit: cls === 'arterial' ? SPEED_ARTERIAL : SPEED_LOCAL,
       forward: [],
       backward: [],
+      dead: false,
+      playerBuilt,
     };
     this.edges.push(edge);
     this.nodes[from].edges.push(id);
     this.nodes[to].edges.push(id);
-    // Slice 1: one lane per direction. The arrays exist so slice 5 can widen.
-    edge.forward.push(this.addLane(edge, 1));
-    edge.backward.push(this.addLane(edge, -1));
+    for (let i = 0; i < lanesPerDir; i++) {
+      edge.forward.push(this.addLane(edge, 1, i, lanesPerDir));
+      edge.backward.push(this.addLane(edge, -1, i, lanesPerDir));
+    }
     return id;
   }
 
-  private addLane(edge: RoadEdge, dir: 1 | -1): LaneId {
+  private addLane(edge: RoadEdge, dir: 1 | -1, index: number, count: number): LaneId {
     const id = this.lanes.length;
-    const a = this.nodes[edge.from].pos;
-    const b = this.nodes[edge.to].pos;
-    const [p, q] = dir === 1 ? [a, b] : [b, a];
-    const d = norm(sub(q, p));
-    const offset = scale(rightNormal(d), LANE_WIDTH / 2);
-    const fromNode = dir === 1 ? edge.from : edge.to;
-    const toNode = dir === 1 ? edge.to : edge.from;
-    const trimFrom = this.trimAt(fromNode);
-    const trimTo = this.trimAt(toNode);
-    const start = add(add(p, scale(d, trimFrom)), offset);
-    const end = add(add(q, scale(d, -trimTo)), offset);
-    this.lanes.push({
+    const lane: Lane = {
       id,
       edge: edge.id,
       dir,
-      index: 0,
-      allowedTurns: ['left', 'through', 'right'],
-      start,
-      end,
-      direction: d,
-      length: dist(start, end),
-      fromNode,
-      toNode,
+      index,
+      allowedTurns: defaultAllowedTurns(index, count),
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: 0 },
+      direction: { x: 1, y: 0 },
+      length: 1,
+      fromNode: dir === 1 ? edge.from : edge.to,
+      toNode: dir === 1 ? edge.to : edge.from,
+      dead: false,
       cars: [],
       reserved: 0,
-    });
+    };
+    this.lanes.push(lane);
+    computeLaneGeometry(this.nodes, edge, lane);
     return id;
   }
 
-  private trimAt(node: NodeId): number {
-    // Portals and dead ends keep the full length; intersections get a box.
-    const k = this.nodes[node].kind;
-    return k === 'intersection' ? NODE_BOX_RADIUS : 0;
-  }
-
-  /** Finalise: build turn connections at every node, compute conflicts. */
   build(): Network {
-    const connections: TurnConnection[] = [];
-    const connsFromLane: ConnId[][] = this.lanes.map(() => []);
+    // Geometry once more, now that all nodes/kinds are final.
+    for (const lane of this.lanes) computeLaneGeometry(this.nodes, this.edges[lane.edge], lane);
+    const { connections, connsFromLane } = buildConnections(this.nodes, this.edges, this.lanes);
+    const portals = this.nodes
+      .filter((n) => n.kind === 'portal')
+      .sort((a, b) => (a.portal ?? '').localeCompare(b.portal ?? ''))
+      .map((n) => n.id);
+    return { nodes: this.nodes, edges: this.edges, lanes: this.lanes, connections, connsFromLane, portals };
+  }
+}
 
-    for (const node of this.nodes) {
-      if (node.kind !== 'intersection' && node.kind !== 'bend') continue;
-      const incoming = this.lanesEndingAt(node.id);
-      const outgoing = this.lanesStartingAt(node.id);
-      for (const inLane of incoming) {
-        for (const outLane of outgoing) {
-          if (outLane.edge === inLane.edge) continue; // no U-turns
-          const kind = classifyTurn(inLane.direction, outLane.direction);
-          if (kind === 'uturn') continue;
-          const conn = makeConnection(connections.length, node, inLane, outLane, kind, this.edges);
+// ------------------------------------------------------------- connections
+
+/** (Re)build all turn connections from live lanes. Derived data. */
+export function buildConnections(
+  nodes: RoadNode[],
+  edges: RoadEdge[],
+  lanes: Lane[],
+): { connections: TurnConnection[]; connsFromLane: ConnId[][] } {
+  const connections: TurnConnection[] = [];
+  const connsFromLane: ConnId[][] = lanes.map(() => []);
+
+  for (const node of nodes) {
+    if (node.kind === 'portal' || node.kind === 'dead_end') continue;
+    const incoming = lanes.filter((l) => !l.dead && l.toNode === node.id);
+    const liveEdges = node.edges.filter((e) => !edges[e].dead);
+    if (liveEdges.length < 2) continue;
+
+    for (const inLane of incoming) {
+      for (const edgeId of liveEdges) {
+        if (edgeId === inLane.edge) continue;
+        const edge = edges[edgeId];
+        const outLanes = (edge.from === node.id ? edge.forward : edge.backward)
+          .map((id) => lanes[id])
+          .filter((l) => !l.dead && l.fromNode === node.id);
+        if (outLanes.length === 0) continue;
+        const kind = classifyTurn(inLane.direction, outLanes[0].direction);
+        if (kind === 'uturn') continue;
+        if (!inLane.allowedTurns.includes(kind)) continue;
+        // One connection per (inLane, outEdge): pick the natural target lane.
+        const targets =
+          kind === 'through'
+            ? [outLanes[Math.min(inLane.index, outLanes.length - 1)]]
+            : kind === 'right'
+              ? [outLanes[0]]
+              : [outLanes[outLanes.length - 1]];
+        for (const outLane of targets) {
+          const conn = makeConnection(connections.length, node, inLane, outLane, kind, edges);
           connections.push(conn);
           connsFromLane[inLane.id].push(conn.id);
         }
       }
     }
-
-    computeConflicts(connections);
-
-    const portals = this.nodes
-      .filter((n) => n.kind === 'portal')
-      .sort((a, b) => (a.portal ?? '').localeCompare(b.portal ?? ''))
-      .map((n) => n.id);
-
-    return {
-      nodes: this.nodes,
-      edges: this.edges,
-      lanes: this.lanes,
-      connections,
-      connsFromLane,
-      portals,
-    };
   }
 
-  lanesEndingAt(node: NodeId): Lane[] {
-    return this.lanes.filter((l) => l.toNode === node);
-  }
-  lanesStartingAt(node: NodeId): Lane[] {
-    return this.lanes.filter((l) => l.fromNode === node);
-  }
+  computeConflicts(connections);
+  return { connections, connsFromLane };
 }
 
 /** Signed-angle turn classification. y-down world: positive cross = right turn. */
@@ -227,7 +279,6 @@ function makeConnection(
   kind: TurnKind,
   edges: RoadEdge[],
 ): TurnConnection {
-  // Quadratic bezier from the in-lane end to the out-lane start via the node.
   const p0 = inLane.end;
   const p2 = outLane.start;
   const ctrl = node.pos;
@@ -245,7 +296,6 @@ function makeConnection(
   const limit = edges[inLane.edge].speedLimit;
   let maxSpeed = limit;
   if (kind !== 'through') {
-    // Approximate turn radius from the chord and the 90° sweep.
     const radius = dist(p0, p2) / Math.SQRT2;
     maxSpeed = Math.min(limit, Math.max(2.5, Math.sqrt(LATERAL_ACCEL * radius)));
   }
@@ -278,7 +328,7 @@ function computeConflicts(conns: TurnConnection[]): void {
       for (let j = i + 1; j < group.length; j++) {
         const a = group[i];
         const b = group[j];
-        if (a.inLane === b.inLane) continue; // same approach: follow, don't conflict
+        if (a.inLane === b.inLane) continue;
         const merge = a.outLane === b.outLane;
         if (merge || pathsCross(a, b)) {
           a.conflicts.push(b.id);
@@ -290,8 +340,6 @@ function computeConflicts(conns: TurnConnection[]): void {
 }
 
 function pathsCross(a: TurnConnection, b: TurnConnection): boolean {
-  // Coarse but robust: test the sampled polylines segment-by-segment,
-  // skipping the very ends (shared box entry/exit corners shouldn't count).
   for (let i = 1; i < a.path.length - 2; i++) {
     for (let j = 1; j < b.path.length - 2; j++) {
       if (segmentsIntersect(a.path[i], a.path[i + 1], b.path[j], b.path[j + 1])) return true;

@@ -53,6 +53,25 @@ export const FRUSTRATION_QUEUE_RATE = 0.012; // per s at full portal queues
 export const FRUSTRATION_DRAIN_FAST = 0.02; // per s when flowing freely
 export const FRUSTRATION_DRAIN_SLOW = 0.005; // per s otherwise
 
+// Economy (spec §10). Rewards scale with how little a car was delayed.
+export const START_MONEY = 600;
+export const REWARD_BASE = 6;
+export const REWARD_BONUS = 10;
+export const ROAD_COST_PER_M = 2;
+export const UPGRADE_EDGE_COST = 300; // second lane each way + arterial speed
+export const SIGNAL_COST = 400;
+export const STOP_COST = 100;
+export const ROUNDABOUT_COST = 600;
+export const AUTOTUNE_COST = 150;
+export const DEMOLISH_REFUND = 0.5;
+export const MIN_ROAD_LEN = 40; // m
+
+// Pedestrians (slice 7): an optional all-red walk phase per signal.
+export const PED_PHASE_SECONDS = 8;
+export const PED_WAIT_LIMIT = 8; // waiting peds beyond this feed frustration
+export const PED_BASE_RATE = 1.2; // peds/min per signal once demand starts
+export const PED_START_TIME = 240; // s into an endless run
+
 // Destination colours (spec §12).
 export const PORTAL_COLORS: readonly string[] = [
   '#E8912A', // A

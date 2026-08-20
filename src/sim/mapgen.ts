@@ -146,7 +146,7 @@ export function validate(net: Network): boolean {
 export function fullyConnected(net: Network): boolean {
   for (const from of net.portals) {
     const reached = new Set<NodeId>();
-    const startLanes = net.lanes.filter((l) => l.fromNode === from);
+    const startLanes = net.lanes.filter((l) => !l.dead && l.fromNode === from);
     const seen = new Set<number>();
     const stack = startLanes.map((l) => l.id);
     while (stack.length) {
